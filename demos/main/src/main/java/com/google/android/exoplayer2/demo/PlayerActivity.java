@@ -107,6 +107,10 @@ public class PlayerActivity extends AppCompatActivity
   private AdsLoader adsLoader;
   private Uri loadedAdTagUri;
 
+  private static final boolean ENABLE_BACKGROUND_PLAYBACK = true;
+
+  private boolean isPlayingInBackground;
+
   // Activity lifecycle
 
   @Override
@@ -154,7 +158,12 @@ public class PlayerActivity extends AppCompatActivity
   public void onStart() {
     super.onStart();
     if (Util.SDK_INT > 23) {
-      initializePlayer();
+      if (isPlayingInBackground) {
+        isPlayingInBackground = false;
+        enableVideoTracks();
+      } else {
+        initializePlayer();
+      }
       if (playerView != null) {
         playerView.onResume();
       }
@@ -190,13 +199,21 @@ public class PlayerActivity extends AppCompatActivity
       if (playerView != null) {
         playerView.onPause();
       }
-      releasePlayer();
+      if (ENABLE_BACKGROUND_PLAYBACK) {
+        disableVideoTracks();
+        isPlayingInBackground = true;
+      } else {
+        releasePlayer();
+      }
     }
   }
 
   @Override
   public void onDestroy() {
     super.onDestroy();
+    if (ENABLE_BACKGROUND_PLAYBACK) {
+      releasePlayer();
+    }
     releaseAdsLoader();
   }
 
@@ -260,6 +277,26 @@ public class PlayerActivity extends AppCompatActivity
   }
 
   // Internal methods
+
+  private void disableVideoTracks() {
+    setVideoTracksDisabled(true);
+  }
+
+  private void enableVideoTracks() {
+    setVideoTracksDisabled(false);
+  }
+
+  private void setVideoTracksDisabled(boolean disable) {
+    android.util.Log.i("PlayerActivity", "wli setVideoTracksDisabled " + disable);
+    updateTrackSelectorParameters();
+    DefaultTrackSelector.ParametersBuilder paramsBuilder = trackSelectorParameters.buildUpon();
+    for (int i = 0; i < player.getRendererCount(); i++) {
+        if (player.getRendererType(i) == C.TRACK_TYPE_VIDEO) {
+            paramsBuilder.setRendererDisabled(i, disable);
+        }
+    }
+    trackSelector.setParameters(paramsBuilder.build());
+  }
 
   protected void setContentView() {
     setContentView(R.layout.player_activity);
